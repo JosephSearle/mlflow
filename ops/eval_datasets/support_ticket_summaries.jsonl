@@ -1,0 +1,2 @@
+{"inputs": {"ticket_body": "My order #4821 arrived damaged and I need a replacement shipped overnight."}, "expectations": {"desired_outcome": "Overnight replacement shipment for order #4821"}}
+{"inputs": {"ticket_body": "I was charged twice for my subscription this month, please refund the duplicate charge."}, "expectations": {"desired_outcome": "Refund of one duplicate subscription charge"}}

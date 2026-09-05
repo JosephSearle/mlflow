@@ -1,0 +1,8 @@
+name: {{ name }}
+endpoint_type: {{ endpoint_type }}
+provider: {{ provider }}
+model: {{ model }}
+config:
+  # sync_gateway.py resolves any "*_env_var" key by reading that env var name
+  # at render time - the actual secret never lives in this file.
+  {{ provider }}_api_key_env_var: {{ api_key_env_var }}

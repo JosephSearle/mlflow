@@ -1,0 +1,13 @@
+name: {{ name }}
+commit_message: {{ commit_message }}
+tags:
+  team: {{ team }}
+  owner: {{ owner_email }}
+template: |
+  {% raw -%}
+  TODO: write the prompt template. Use {{variable_name}} placeholders for
+  values that will be injected at call time - they are NOT Jinja, MLflow
+  renders them itself when the prompt is loaded and formatted.
+
+  {{example_variable}}
+  {%- endraw %}

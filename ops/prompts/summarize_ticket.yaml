@@ -1,0 +1,11 @@
+name: summarize_ticket
+commit_message: Initial version
+tags:
+  team: support
+  owner: josephwilliamsearle@gmail.com
+template: |
+  You are triaging a support ticket. Summarize the issue in one sentence,
+  then list the customer's desired outcome as a single bullet point.
+
+  Ticket:
+  {{ticket_body}}

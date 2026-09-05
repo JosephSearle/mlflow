@@ -1,0 +1,7 @@
+name: support_summarizer
+endpoint_type: llm/v1/chat
+provider: openai
+model: gpt-4o-mini
+config:
+  # Actual secret is injected via env var at sync time, never committed here.
+  openai_api_key_env_var: OPENAI_API_KEY
