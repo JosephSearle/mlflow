@@ -115,17 +115,14 @@ the full list.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every PR and push to `main`:
+`.github/workflows/ci.yml`:
 
-- `validate-prompts` / `validate-gateway` / `validate-eval-datasets` — the same
+**On every PR and push to `main`** — schema/build checks only, nothing touches
+any server:
+- `validate-prompts` / `validate-gateway` / `validate-eval-datasets` — the
   schema-only `validate_*.py` scripts from local dev, no network.
 - `docker-build` — builds `server/Dockerfile.vercel` to catch a broken image
   before it reaches Vercel.
-- `sync-integration` — brings up the real `docker-compose.yml` stack (Postgres +
-  MLflow, `AUTH_DISABLED=true` since there's no Auth0 tenant in CI) and runs
-  `sync_*.py --apply` then `--check` against it, exactly as verified by hand
-  during development — this is the check that would catch an MLflow API/behavior
-  regression the schema validators can't see.
 - `secret-scan` — `detect-secrets` against `.secrets.baseline`, failing the
   build if a new/unaudited secret shows up. To update the baseline after adding
   an intentional entry (or a new plugin), run locally and commit the diff:
@@ -133,3 +130,24 @@ the full list.
   pip install detect-secrets
   detect-secrets scan --exclude-files '\.git/' --exclude-files 'ops/gateway/rendered_config\.yaml' --baseline .secrets.baseline
   ```
+
+**Only after a merge lands on `main`** (never on a PR — `sync-to-production`
+checks `github.event_name == 'push' && github.ref == 'refs/heads/main'`, and
+also waits on all the checks above via `needs:`):
+- `sync-to-production` — mints an Auth0 M2M token (see **Authenticating ops
+  scripts** above) and runs `sync_prompts.py --apply` /
+  `sync_eval_datasets.py --apply` against the real production MLflow server,
+  then renders the AI Gateway config with real provider keys and uploads it as
+  a build artifact. **Note:** rendering the gateway config does not currently
+  restart a live gateway process — the production container only runs
+  `mlflow server` + oauth2-proxy (see the AI Gateway note above); picking up a
+  new render today still means manually running
+  `mlflow gateway start --config-path <downloaded artifact>` somewhere. This
+  job uses a GitHub `production` environment, so you can add required
+  reviewers/protection rules on it independently of branch protection.
+
+  Requires these set on the `production` environment (Settings → Environments
+  → production): **secrets** `AUTH0_ISSUER_URL`, `AUTH0_M2M_CLIENT_ID`,
+  `AUTH0_M2M_CLIENT_SECRET`, `AUTH0_M2M_AUDIENCE`, `OPENAI_API_KEY` (one per
+  gateway provider key referenced under `ops/gateway/*.yaml`); **variable**
+  `PRODUCTION_MLFLOW_TRACKING_URI`.

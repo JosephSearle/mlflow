@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: mlflow
-      POSTGRES_PASSWORD: mlflow
+      POSTGRES_PASSWORD: mlflow  # pragma: allowlist secret
       POSTGRES_DB: mlflow
     ports:
       - "5432:5432"
@@ -25,7 +25,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://mlflow:mlflow@postgres:5432/mlflow
+      DATABASE_URL: postgresql://mlflow:mlflow@postgres:5432/mlflow  # pragma: allowlist secret
       # Local dev has no S3 bucket by default; point artifacts at a bind-mounted
       # directory instead. Swap for an s3:// URI to test against real object storage.
       MLFLOW_ARTIFACT_ROOT: /mlartifacts
