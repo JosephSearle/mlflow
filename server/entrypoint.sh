@@ -12,7 +12,8 @@ if [ "${AUTH_DISABLED:-false}" = "true" ]; then
     --backend-store-uri "$DATABASE_URL" \
     --default-artifact-root "$MLFLOW_ARTIFACT_ROOT" \
     --host 0.0.0.0 \
-    --port "$PORT"
+    --port "$PORT" \
+    --workers "${MLFLOW_SERVER_WORKERS:-1}"
 fi
 
 : "${AUTH0_ISSUER_URL:?AUTH0_ISSUER_URL is required unless AUTH_DISABLED=true}"
@@ -54,12 +55,24 @@ PUBLIC_URL_HOST="${PUBLIC_URL#*://}"
 PUBLIC_URL_HOST="${PUBLIC_URL_HOST%%/*}"
 : "${MLFLOW_SERVER_ALLOWED_HOSTS:=$PUBLIC_URL_HOST}"
 
+# mlflow server defaults to 4 Uvicorn worker processes, each independently
+# re-importing the full app on boot - measured (Vercel function logs) at
+# ~16s just for all 4 to report "Application startup complete", on top of
+# oauth2-proxy binding its own port in under 1s. Since oauth2-proxy is what
+# makes Vercel mark the container ready for traffic, any request landing in
+# that gap gets "connection refused" from this process -> a 502 from
+# oauth2-proxy. This is a small internal tool, not a high-concurrency public
+# service, so 1 worker is the default here to shrink that window; bump
+# MLFLOW_SERVER_WORKERS explicitly if real concurrent load needs it.
+: "${MLFLOW_SERVER_WORKERS:=1}"
+
 mlflow server \
   --backend-store-uri "$DATABASE_URL" \
   --default-artifact-root "$MLFLOW_ARTIFACT_ROOT" \
   --host 127.0.0.1 \
   --port "$MLFLOW_INTERNAL_PORT" \
-  --allowed-hosts="$MLFLOW_SERVER_ALLOWED_HOSTS" &
+  --allowed-hosts="$MLFLOW_SERVER_ALLOWED_HOSTS" \
+  --workers "$MLFLOW_SERVER_WORKERS" &
 MLFLOW_PID=$!
 
 # Auth0's issuer claim (in its discovery doc and in every token it issues)
