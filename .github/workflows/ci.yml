@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-prompts:
+    name: Validate prompts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ops/requirements.txt
+      - run: pip install -r ops/requirements.txt
+      - run: python ops/scripts/validate_prompts.py
+
+  validate-gateway:
+    name: Validate AI Gateway configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ops/requirements.txt
+      - run: pip install -r ops/requirements.txt
+      - run: python ops/scripts/validate_gateway.py
+
+  validate-eval-datasets:
+    name: Validate eval datasets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ops/requirements.txt
+      - run: pip install -r ops/requirements.txt
+      - run: python ops/scripts/validate_eval_datasets.py
+
+  docker-build:
+    name: Build server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f server/Dockerfile.vercel -t mlflow-server:ci server
+
+  # Only runs after a merge to main, never on a PR - this is the job that
+  # actually publishes to the production MLflow server. PRs only get the
+  # schema-only validate-*/docker-build/secret-scan checks above; nothing in
+  # this workflow touches the live server until code has already landed on
+  # main, so a bad sync can only follow a bad merge, never precede one.
+  sync-to-production:
+    name: Sync ops artifacts to production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [validate-prompts, validate-gateway, validate-eval-datasets, docker-build, secret-scan]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ops/requirements.txt
+      - run: pip install -r ops/requirements.txt
+      - name: Mint a short-lived Auth0 M2M tracking token
+        env:
+          AUTH0_ISSUER_URL: ${{ secrets.AUTH0_ISSUER_URL }}
+          AUTH0_M2M_CLIENT_ID: ${{ secrets.AUTH0_M2M_CLIENT_ID }}
+          AUTH0_M2M_CLIENT_SECRET: ${{ secrets.AUTH0_M2M_CLIENT_SECRET }}
+          AUTH0_M2M_AUDIENCE: ${{ secrets.AUTH0_M2M_AUDIENCE }}
+        run: |
+          token=$(./ops/scripts/get_tracking_token.sh)
+          echo "::add-mask::$token"
+          echo "MLFLOW_TRACKING_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: Sync prompts to the Prompt Registry
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.PRODUCTION_MLFLOW_TRACKING_URI }}
+        run: python ops/scripts/sync_prompts.py --apply
+      - name: Sync eval datasets
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.PRODUCTION_MLFLOW_TRACKING_URI }}
+        run: python ops/scripts/sync_eval_datasets.py --apply
+      - name: Render AI Gateway config
+        # Renders ops/gateway/rendered_config.yaml with real provider keys resolved.
+        # NOTE: nothing in the current deployment automatically restarts the
+        # gateway process with this file - the production container only runs
+        # `mlflow server` + oauth2-proxy, not `mlflow gateway start` (see README,
+        # "AI Gateway" section, for why that's still a separate manual process
+        # today). Uploading it here so it's at least retrievable for that step,
+        # rather than claiming this job fully deploys it.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python ops/scripts/sync_gateway.py --apply
+      - name: Upload rendered gateway config
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-rendered-config
+          path: ops/gateway/rendered_config.yaml
+          retention-days: 7
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install detect-secrets
+      - name: Scan for new/unaudited secrets
+        run: |
+          detect-secrets scan \
+            --exclude-files '\.git/' \
+            --exclude-files 'ops/gateway/rendered_config\.yaml' \
+            --baseline .secrets.baseline
+          # `scan` always rewrites generated_at, so ignore that field when
+          # deciding whether the results actually changed.
+          jq 'del(.generated_at)' .secrets.baseline > /tmp/after.json
+          git show HEAD:.secrets.baseline | jq 'del(.generated_at)' > /tmp/before.json
+          diff /tmp/before.json /tmp/after.json

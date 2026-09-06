@@ -1,0 +1,4 @@
+mlflow[genai]==3.16.0
+psycopg2-binary==2.9.9
+boto3==1.34.162
+gunicorn==22.0.0

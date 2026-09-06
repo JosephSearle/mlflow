@@ -1,0 +1,21 @@
+_subdirectory: template
+_templates_suffix: ".jinja"
+_answers_file: ".copier-answers.{{ name }}.yml"
+
+name:
+  type: str
+  help: "Dataset name (lowercase_snake_case, must be unique - becomes the filename)"
+  validator: >-
+    {% if not (name | regex_search('^[a-z][a-z0-9_]*$')) %}
+    Name must be lowercase snake_case, starting with a letter (e.g. support_ticket_summaries)
+    {% endif %}
+
+input_field:
+  type: str
+  help: "Name of the primary input field each row will carry under 'inputs'"
+  default: input_text
+
+expectation_field:
+  type: str
+  help: "Name of the field under 'expectations' each row will carry"
+  default: expected_output

@@ -1,0 +1,39 @@
+_subdirectory: template
+_templates_suffix: ".jinja"
+_answers_file: ".copier-answers.{{ name }}.yml"
+
+name:
+  type: str
+  help: "Endpoint name (lowercase_snake_case, must be unique - becomes the filename and the gateway endpoint name)"
+  validator: >-
+    {% if not (name | regex_search('^[a-z][a-z0-9_]*$')) %}
+    Name must be lowercase snake_case, starting with a letter (e.g. support_summarizer)
+    {% endif %}
+
+endpoint_type:
+  type: str
+  help: "Gateway endpoint type"
+  choices:
+    - llm/v1/chat
+    - llm/v1/completions
+    - llm/v1/embeddings
+  default: llm/v1/chat
+
+provider:
+  type: str
+  help: "Model provider"
+  choices:
+    - openai
+    - anthropic
+    - cohere
+    - mosaicml
+  default: openai
+
+model:
+  type: str
+  help: "Model name as the provider identifies it (e.g. gpt-4o-mini, claude-sonnet-5)"
+
+api_key_env_var:
+  type: str
+  help: "Name of the environment variable holding the provider API key at sync/render time (never the key itself)"
+  default: "{{ provider | upper }}_API_KEY"

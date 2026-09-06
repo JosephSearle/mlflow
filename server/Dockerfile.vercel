@@ -1,0 +1,34 @@
+FROM python:3.11-slim
+
+ARG OAUTH2_PROXY_VERSION=7.6.0
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# oauth2-proxy ships as a static binary; install it directly rather than pulling
+# in a package manager/build toolchain just for one binary.
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "$ARCH" in \
+         amd64) OAUTH2_PROXY_ARCH="amd64" ;; \
+         arm64) OAUTH2_PROXY_ARCH="arm64" ;; \
+         *) echo "unsupported architecture: $ARCH" && exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/oauth2-proxy.tar.gz \
+         "https://github.com/oauth2-proxy/oauth2-proxy/releases/download/v${OAUTH2_PROXY_VERSION}/oauth2-proxy-v${OAUTH2_PROXY_VERSION}.linux-${OAUTH2_PROXY_ARCH}.tar.gz" \
+    && tar -xzf /tmp/oauth2-proxy.tar.gz -C /tmp \
+    && mv /tmp/oauth2-proxy-v${OAUTH2_PROXY_VERSION}.linux-${OAUTH2_PROXY_ARCH}/oauth2-proxy /usr/local/bin/oauth2-proxy \
+    && chmod +x /usr/local/bin/oauth2-proxy \
+    && rm -rf /tmp/oauth2-proxy*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+# Vercel routes traffic to whatever port is in $PORT.
+EXPOSE 8080
+
+ENTRYPOINT ["./entrypoint.sh"]

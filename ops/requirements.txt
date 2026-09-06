@@ -1,0 +1,4 @@
+mlflow[genai,gateway]==3.16.0
+pandas==2.3.3
+pyyaml==6.0.2
+copier==9.18.1

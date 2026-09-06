@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow  # pragma: allowlist secret
+      POSTGRES_DB: mlflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mlflow:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.vercel
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://mlflow:mlflow@postgres:5432/mlflow  # pragma: allowlist secret
+      # Local dev has no S3 bucket by default; point artifacts at a bind-mounted
+      # directory instead. Swap for an s3:// URI to test against real object storage.
+      MLFLOW_ARTIFACT_ROOT: /mlartifacts
+      # PORT is what oauth2-proxy listens on (exposed to the host); mlflow itself
+      # binds to MLFLOW_INTERNAL_PORT on 127.0.0.1, behind the proxy.
+      # AUTH_DISABLED comes from .env (set it to "true" there to skip oauth2-proxy
+      # entirely and expose mlflow directly instead).
+      PORT: "5001"
+      MLFLOW_INTERNAL_PORT: "5000"
+    ports:
+      - "5001:5001"
+    volumes:
+      - mlflow_artifacts:/mlartifacts
+
+volumes:
+  postgres_data:
+  mlflow_artifacts:
