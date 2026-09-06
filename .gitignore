@@ -5,3 +5,4 @@ __pycache__/
 
 # Contains resolved secrets (real API keys) at render time - never commit.
 ops/gateway/rendered_config.yaml
+env

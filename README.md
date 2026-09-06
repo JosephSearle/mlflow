@@ -109,9 +109,16 @@ token instead, via a separate Auth0 Machine-to-Machine app:
 ## Production
 
 Set `DATABASE_URL` to the Neon connection string, `MLFLOW_ARTIFACT_ROOT` to an
-`s3://` URI, and the `AUTH0_*` / `OAUTH2_PROXY_COOKIE_SECRET` env vars in the
-Vercel project, then deploy `server/Dockerfile.vercel`. See `.env.example` for
-the full list.
+`s3://` (or `b2://` for Backblaze B2) URI, and the `AUTH0_*` /
+`OAUTH2_PROXY_COOKIE_SECRET` env vars in the Vercel project, then deploy
+`server/Dockerfile.vercel`. See `.env.example` for the full list.
+
+In the Vercel project's settings, point the Root Directory / build config at
+`server/Dockerfile.vercel` (Vercel's Dockerfile-deploy config surface has moved
+fast — see https://vercel.com/kb/guide/does-vercel-support-docker-deployments —
+so confirm the exact `vercel.json` keys against current docs before adding any;
+`vercel.json` is deliberately minimal here (just `$schema`) since an unknown
+top-level key gets rejected outright by Vercel's deploy validation).
 
 ## CI
 
