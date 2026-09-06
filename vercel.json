@@ -1,4 +1,3 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "_comment": "Vercel's Dockerfile deploy config surface has moved fast (see https://vercel.com/kb/guide/does-vercel-support-docker-deployments). Point the Vercel project's root/build settings at server/Dockerfile.vercel and confirm the exact vercel.json keys against current docs before relying on this file - treat it as a placeholder, not verified config."
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }
