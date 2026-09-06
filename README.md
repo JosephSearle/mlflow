@@ -119,6 +119,42 @@ Set `DATABASE_URL` to the Neon connection string, `MLFLOW_ARTIFACT_ROOT` to an
 `OAUTH2_PROXY_COOKIE_SECRET` env vars in the Vercel project, then deploy
 `server/Dockerfile.vercel`. See `.env.example` for the full list.
 
+**Callback URLs and `PUBLIC_URL`.** Vercel gives every deployment its own
+permanent hash-suffixed URL (`mlflow-<hash>-josephsearles-projects.vercel.app`)
+in addition to the project's stable Production Domain
+(`mlflow-josephsearles-projects.vercel.app`). The hash changes on every deploy -
+that's by design, it's Vercel's per-build debug/rollback link, not meant to be
+the app's front door. Without `--redirect-url` pinned, oauth2-proxy builds its
+OAuth `redirect_uri` from whichever Host header the request arrived on, so
+hitting the hash URL directly always fails Auth0's callback check (its
+allowlist can't contain a URL that doesn't exist yet, and can't be updated
+per-deploy).
+
+`server/entrypoint.sh` pins this via `PUBLIC_URL`, which defaults to Vercel's
+own `VERCEL_PROJECT_PRODUCTION_URL` system env var - always set at runtime,
+always the project's real Production Domain, self-updating if a custom domain
+is added later. This needs no manual per-project value: just tick **Enable
+access to System Environment Variables** once under the Vercel project's
+Environment Variables settings. Only set `PUBLIC_URL` explicitly to override
+this (e.g. local dev, where it's `http://localhost:5001` - see `.env.example`).
+
+Whatever `PUBLIC_URL` resolves to, only *its* `/oauth2/callback` and `/` need
+to be in Auth0's Allowed Callback/Logout URLs - never a per-deployment hash
+URL. Always log in or test against the stable domain, not the hash one.
+
+**MLflow's own DNS-rebinding protection is separate from all of this.**
+Independent of oauth2-proxy/Auth0, the Werkzeug server underneath `mlflow
+server` rejects any request whose `Host` header isn't localhost, a private
+IP, or explicitly allow-listed via `--allowed-hosts` /
+`MLFLOW_SERVER_ALLOWED_HOSTS` - "Invalid Host header - possible DNS rebinding
+attack detected". oauth2-proxy's `passHostHeader` defaults to true, so MLflow
+sees the *original external* Host header (the Vercel domain), not
+`127.0.0.1` - pinning `PUBLIC_URL` above does not fix this on its own.
+`entrypoint.sh` defaults `MLFLOW_SERVER_ALLOWED_HOSTS` from `PUBLIC_URL`'s own
+host, so this also needs no manual per-project value; set it explicitly
+(comma-separated, wildcards supported, e.g. `mlflow.company.com,192.168.*`)
+only to allow further hosts. See `.env.example`.
+
 In the Vercel project's settings, point the Root Directory / build config at
 `server/Dockerfile.vercel` (Vercel's Dockerfile-deploy config surface has moved
 fast — see https://vercel.com/kb/guide/does-vercel-support-docker-deployments —
