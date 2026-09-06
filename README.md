@@ -97,8 +97,14 @@ token instead, via a separate Auth0 Machine-to-Machine app:
    that API. Note its Client ID/Secret as `AUTH0_M2M_CLIENT_ID`/`AUTH0_M2M_CLIENT_SECRET`.
 3. Set `AUTH0_M2M_AUDIENCE` on the deployed server too (it's read by
    `entrypoint.sh` to tell `oauth2-proxy` which token audience to trust via
-   `--extra-jwt-issuers`, verified to parse and trigger OIDC discovery correctly;
-   full token validation depends on your real Auth0 tenant).
+   `--extra-jwt-issuers`). Verified end-to-end against a real Auth0 tenant:
+   unauthenticated request → 302 to login, request with a minted M2M token →
+   200. **Known residual risk:** unlike the main login flow (which uses
+   `--skip-oidc-discovery` specifically to avoid this), `--extra-jwt-issuers`
+   always makes its own OIDC discovery call to Auth0 at startup with no way to
+   skip it — measured at ~1s against the real tenant, comfortably under
+   Vercel's 15s startup timeout, but still a real network dependency on
+   Auth0 being reachable.
 4. Before running sync scripts against a deployed (non-local) server:
    ```bash
    export MLFLOW_TRACKING_TOKEN="$(./ops/scripts/get_tracking_token.sh)"
